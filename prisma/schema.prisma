@@ -1,0 +1,602 @@
+// Nexus Inventory Management Service - Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum ItemCategory {
+  FURNITURE
+  APPLIANCE
+  CONSUMABLE
+  STAGING
+  EQUIPMENT
+  LINENS
+  KITCHENWARE
+  ELECTRONICS
+  DECOR
+  MAINTENANCE
+  CLEANING
+  OTHER
+}
+
+enum ItemCondition {
+  NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+  DISPOSED
+}
+
+enum TransactionType {
+  RECEIVE        // Receiving new inventory
+  CONSUME        // Using/depleting inventory
+  TRANSFER       // Moving between locations
+  ADJUST         // Manual adjustment
+  DAMAGE         // Item damaged
+  DISPOSE        // Item disposed/discarded
+  RETURN         // Return to vendor
+  ASSIGN         // Assign to staging
+  UNASSIGN       // Remove from staging
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum StockAlertLevel {
+  CRITICAL       // Below minimum
+  LOW            // Near minimum
+  NORMAL         // Between min and max
+  HIGH           // Near maximum
+  OVERSTOCK      // Above maximum
+}
+
+enum StagingStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  REMOVED
+}
+
+// ============================================================================
+// CORE MODELS
+// ============================================================================
+
+model InventoryItem {
+  id                String            @id @default(uuid())
+  sku               String            @unique
+  name              String
+  description       String?
+  category          ItemCategory
+  subcategory       String?
+
+  // Brand and model
+  brand             String?
+  model             String?
+  manufacturer      String?
+
+  // Identification
+  barcode           String?           @unique
+  qrCode            String?
+  serialNumber      String?
+
+  // Financial
+  purchaseCost      Decimal           @db.Decimal(10, 2)
+  replacementCost   Decimal           @db.Decimal(10, 2)
+  currentValue      Decimal           @db.Decimal(10, 2)
+
+  // Lifecycle
+  expectedLifespan  Int?              // In months
+  warrantyMonths    Int?
+  condition         ItemCondition     @default(NEW)
+
+  // Physical attributes
+  weight            Decimal?          @db.Decimal(10, 2) // In pounds
+  dimensions        Json?             // { length, width, height }
+  color             String?
+  material          String?
+
+  // Documentation
+  photos            String[]          // Array of photo URLs
+  documents         String[]          // Array of document URLs (manuals, receipts)
+  notes             String?
+
+  // Vendor
+  vendorId          String?
+  vendorName        String?
+  vendorSku         String?
+  vendorContact     Json?
+
+  // Reorder settings
+  reorderPoint      Int               @default(0)
+  reorderQuantity   Int               @default(1)
+  maxQuantity       Int?
+
+  // Metadata
+  tags              String[]
+  customFields      Json?
+
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  // Relations
+  levels            InventoryLevel[]
+  transactions      Transaction[]
+  stagingItems      StagingItem[]
+  forecasts         DemandForecast[]
+  purchaseOrders    PurchaseOrderItem[]
+
+  @@index([category])
+  @@index([sku])
+  @@index([barcode])
+  @@index([vendorId])
+  @@index([isActive])
+  @@map("inventory_items")
+}
+
+model InventoryLevel {
+  id                String            @id @default(uuid())
+
+  // Item reference
+  itemId            String
+  item              InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  // Location hierarchy
+  propertyId        String            // Reference to property
+  unitId            String?           // Optional unit within property
+  roomId            String?           // Optional room within unit
+  locationName      String            // Human-readable location
+  locationPath      String            // Full path: Property/Unit/Room
+
+  // Quantities
+  quantityOnHand    Int               @default(0)
+  quantityReserved  Int               @default(0)
+  quantityAvailable Int               @default(0) // Computed: onHand - reserved
+
+  // Reorder settings (can override item defaults)
+  minQuantity       Int?
+  maxQuantity       Int?
+  reorderPoint      Int?
+
+  // Stock status
+  alertLevel        StockAlertLevel   @default(NORMAL)
+  lastAlertSent     DateTime?
+
+  // Tracking
+  lastCountedDate   DateTime?
+  lastCountedBy     String?
+  nextCountDate     DateTime?
+
+  // Bin/shelf location
+  binLocation       String?
+  shelfLocation     String?
+
+  // Metadata
+  notes             String?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([itemId, propertyId, unitId, roomId])
+  @@index([itemId])
+  @@index([propertyId])
+  @@index([alertLevel])
+  @@index([lastCountedDate])
+  @@map("inventory_levels")
+}
+
+model Transaction {
+  id                String            @id @default(uuid())
+  transactionNumber String            @unique @default(cuid())
+
+  // Type and status
+  type              TransactionType
+  status            TransactionStatus @default(PENDING)
+
+  // Item reference
+  itemId            String
+  item              InventoryItem     @relation(fields: [itemId], references: [id])
+
+  // Quantity
+  quantity          Int
+  unitCost          Decimal?          @db.Decimal(10, 2)
+  totalCost         Decimal?          @db.Decimal(10, 2)
+
+  // Location tracking
+  fromPropertyId    String?           // Source location
+  fromUnitId        String?
+  fromRoomId        String?
+  fromLocation      String?
+
+  toPropertyId      String?           // Destination location
+  toUnitId          String?
+  toRoomId          String?
+  toLocation        String?
+
+  // Transaction details
+  reasonCode        String?
+  reason            String?
+  notes             String?
+
+  // Reference documents
+  referenceType     String?           // PO, Invoice, etc.
+  referenceNumber   String?
+  attachments       String[]          // Document URLs
+
+  // Approval workflow
+  requiresApproval  Boolean           @default(false)
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectionReason   String?
+
+  // Staging reference (if applicable)
+  stagingDesignId   String?
+  stagingDesign     StagingDesign?    @relation(fields: [stagingDesignId], references: [id])
+
+  // Audit trail
+  transactionDate   DateTime          @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdBy         String?
+  processedBy       String?
+
+  @@index([type])
+  @@index([status])
+  @@index([itemId])
+  @@index([transactionDate])
+  @@index([fromPropertyId])
+  @@index([toPropertyId])
+  @@index([stagingDesignId])
+  @@map("transactions")
+}
+
+model StagingDesign {
+  id                String            @id @default(uuid())
+  name              String
+  description       String?
+
+  // Location
+  propertyId        String
+  unitId            String?
+  roomName          String
+  roomType          String?           // Living Room, Bedroom, etc.
+
+  // Design details
+  style             String?           // Modern, Traditional, Minimalist, etc.
+  colorScheme       Json?             // { primary, secondary, accent }
+  theme             String?
+  targetAudience    String?           // Business travelers, families, etc.
+
+  // Visual documentation
+  beforePhotos      String[]
+  afterPhotos       String[]
+  inspirationPhotos String[]
+  floorPlan         String?
+
+  // Status
+  status            StagingStatus     @default(DRAFT)
+
+  // ROI Tracking
+  implementedDate   DateTime?
+  removedDate       DateTime?
+
+  costTotal         Decimal           @db.Decimal(10, 2) @default(0)
+  laborCost         Decimal?          @db.Decimal(10, 2)
+
+  // Performance metrics (linked to property analytics)
+  avgNightlyRateBefore   Decimal?     @db.Decimal(10, 2)
+  avgNightlyRateAfter    Decimal?     @db.Decimal(10, 2)
+  bookingRateBefore      Decimal?     @db.Decimal(5, 2) // Percentage
+  bookingRateAfter       Decimal?     @db.Decimal(5, 2)
+  avgReviewScoreBefore   Decimal?     @db.Decimal(3, 2)
+  avgReviewScoreAfter    Decimal?     @db.Decimal(3, 2)
+
+  roi                    Decimal?     @db.Decimal(10, 2) // Calculated ROI
+
+  // Metadata
+  tags              String[]
+  notes             String?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  // Relations
+  items             StagingItem[]
+  transactions      Transaction[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([roomType])
+  @@index([implementedDate])
+  @@map("staging_designs")
+}
+
+model StagingItem {
+  id                String            @id @default(uuid())
+
+  // Design reference
+  stagingDesignId   String
+  stagingDesign     StagingDesign     @relation(fields: [stagingDesignId], references: [id], onDelete: Cascade)
+
+  // Item reference
+  itemId            String
+  item              InventoryItem     @relation(fields: [itemId], references: [id])
+
+  // Quantity and placement
+  quantity          Int               @default(1)
+  placement         String?           // "Against north wall", "Center of room", etc.
+  notes             String?
+
+  // Cost for this item in this design
+  itemCost          Decimal           @db.Decimal(10, 2)
+
+  // Status
+  isPlaced          Boolean           @default(false)
+  placedDate        DateTime?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([stagingDesignId, itemId])
+  @@index([stagingDesignId])
+  @@index([itemId])
+  @@map("staging_items")
+}
+
+// ============================================================================
+// FORECASTING & ANALYTICS
+// ============================================================================
+
+model DemandForecast {
+  id                String            @id @default(uuid())
+
+  // Item and location
+  itemId            String
+  item              InventoryItem     @relation(fields: [itemId], references: [id])
+  propertyId        String?
+
+  // Forecast period
+  forecastDate      DateTime
+  periodStart       DateTime
+  periodEnd         DateTime
+
+  // Predictions
+  predictedDemand   Decimal           @db.Decimal(10, 2)
+  lowerBound        Decimal           @db.Decimal(10, 2)
+  upperBound        Decimal           @db.Decimal(10, 2)
+  confidence        Decimal           @db.Decimal(5, 4) // 0-1
+
+  // Actual vs predicted (filled after period)
+  actualDemand      Decimal?          @db.Decimal(10, 2)
+  accuracy          Decimal?          @db.Decimal(5, 4)
+
+  // Factors considered
+  seasonalFactor    Decimal?          @db.Decimal(5, 4)
+  trendFactor       Decimal?          @db.Decimal(5, 4)
+  occupancyFactor   Decimal?          @db.Decimal(5, 4)
+
+  // Recommendations
+  recommendedOrder  Int?
+  safetyStock       Int?
+
+  // Model metadata
+  modelVersion      String?
+  modelParameters   Json?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([itemId])
+  @@index([forecastDate])
+  @@index([periodStart])
+  @@map("demand_forecasts")
+}
+
+model StockAlert {
+  id                String            @id @default(uuid())
+
+  // Item and level reference
+  itemId            String
+  levelId           String?
+
+  // Alert details
+  alertType         StockAlertLevel
+  message           String
+  severity          String            @default("medium") // low, medium, high, critical
+
+  // Quantities at time of alert
+  currentQuantity   Int
+  reorderPoint      Int
+
+  // Status
+  isAcknowledged    Boolean           @default(false)
+  acknowledgedBy    String?
+  acknowledgedAt    DateTime?
+
+  isResolved        Boolean           @default(false)
+  resolvedAt        DateTime?
+  resolution        String?
+
+  // Notifications
+  notificationsSent Json?             // Array of { channel, sentAt, recipient }
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([itemId])
+  @@index([alertType])
+  @@index([isResolved])
+  @@index([createdAt])
+  @@map("stock_alerts")
+}
+
+// ============================================================================
+// PURCHASE ORDERS
+// ============================================================================
+
+model PurchaseOrder {
+  id                String            @id @default(uuid())
+  poNumber          String            @unique @default(cuid())
+
+  // Vendor
+  vendorId          String?
+  vendorName        String
+  vendorContact     Json?
+
+  // Status
+  status            String            @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, ORDERED, RECEIVED, CANCELLED
+
+  // Delivery
+  deliveryAddress   Json?
+  expectedDelivery  DateTime?
+  actualDelivery    DateTime?
+
+  // Financial
+  subtotal          Decimal           @db.Decimal(10, 2) @default(0)
+  tax               Decimal           @db.Decimal(10, 2) @default(0)
+  shipping          Decimal           @db.Decimal(10, 2) @default(0)
+  total             Decimal           @db.Decimal(10, 2) @default(0)
+
+  // Payment
+  paymentTerms      String?
+  paymentStatus     String            @default("UNPAID") // UNPAID, PARTIAL, PAID
+  paidAmount        Decimal           @db.Decimal(10, 2) @default(0)
+
+  // Documents
+  attachments       String[]
+
+  notes             String?
+
+  // Approval
+  approvedBy        String?
+  approvedAt        DateTime?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdBy         String?
+
+  // Relations
+  items             PurchaseOrderItem[]
+
+  @@index([status])
+  @@index([vendorId])
+  @@index([expectedDelivery])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id                String            @id @default(uuid())
+
+  // PO reference
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  // Item reference
+  itemId            String
+  item              InventoryItem     @relation(fields: [itemId], references: [id])
+
+  // Order details
+  quantity          Int
+  unitCost          Decimal           @db.Decimal(10, 2)
+  totalCost         Decimal           @db.Decimal(10, 2)
+
+  // Receiving
+  quantityReceived  Int               @default(0)
+  quantityBackorder Int               @default(0)
+
+  // Delivery to location
+  deliverToProperty String?
+  deliverToUnit     String?
+  deliverToRoom     String?
+
+  notes             String?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([itemId])
+  @@map("purchase_order_items")
+}
+
+// ============================================================================
+// DEPRECIATION & MAINTENANCE
+// ============================================================================
+
+model AssetDepreciation {
+  id                String            @id @default(uuid())
+
+  // Item reference
+  itemId            String
+
+  // Depreciation settings
+  method            String            // STRAIGHT_LINE, DECLINING_BALANCE, etc.
+  purchaseDate      DateTime
+  purchaseCost      Decimal           @db.Decimal(10, 2)
+  salvageValue      Decimal           @db.Decimal(10, 2) @default(0)
+  usefulLife        Int               // In months
+
+  // Current status
+  currentValue      Decimal           @db.Decimal(10, 2)
+  accumulatedDepreciation Decimal     @db.Decimal(10, 2) @default(0)
+  monthsDepreciated Int               @default(0)
+
+  // Next replacement recommendation
+  replacementDate   DateTime?
+  replacementCost   Decimal?          @db.Decimal(10, 2)
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([itemId])
+  @@index([replacementDate])
+  @@map("asset_depreciation")
+}
+
+model MaintenanceSchedule {
+  id                String            @id @default(uuid())
+
+  // Item reference
+  itemId            String
+
+  // Schedule
+  taskName          String
+  description       String?
+  frequency         String            // WEEKLY, MONTHLY, QUARTERLY, ANNUALLY
+  nextDueDate       DateTime
+  lastCompletedDate DateTime?
+
+  // Notifications
+  reminderDays      Int               @default(7)
+  assignedTo        String?
+
+  isActive          Boolean           @default(true)
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([itemId])
+  @@index([nextDueDate])
+  @@map("maintenance_schedules")
+}
