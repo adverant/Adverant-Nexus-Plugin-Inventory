@@ -1,0 +1,114 @@
+{
+  "name": "nexus-inventory",
+  "displayName": "InventoryAI - Smart Inventory Management",
+  "version": "1.0.0",
+  "description": "AI-powered inventory management with demand forecasting, automated reordering, stock optimization, and supplier management. Reduce costs and prevent stockouts.",
+  "developer": {
+    "name": "Adverant",
+    "url": "https://adverant.ai",
+    "email": "plugins@adverant.ai",
+    "verified": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adverant/Adverant-Nexus-Plugin-Inventory"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "inventory",
+    "stock-management",
+    "demand-forecasting",
+    "supply-chain",
+    "reordering",
+    "optimization"
+  ],
+  "nexus": {
+    "minVersion": "1.0.0",
+    "executionMode": "mcp_container",
+    "isolationLevel": 2,
+    "capabilities": [
+      "demand-forecasting",
+      "stock-optimization",
+      "auto-reordering",
+      "supplier-management",
+      "analytics",
+      "alerts"
+    ],
+    "permissions": [
+      "network:external",
+      "filesystem:temp",
+      "service:mageagent"
+    ],
+    "entrypoint": "dist/index.js",
+    "healthCheck": "/health",
+    "readinessCheck": "/ready",
+    "livenessCheck": "/live"
+  },
+  "resources": {
+    "cpuMillicores": 1000,
+    "memoryMB": 2048,
+    "diskGB": 10,
+    "timeoutMs": 300000,
+    "maxConcurrentJobs": 10
+  },
+  "api": {
+    "version": "v1",
+    "basePath": "/api/v1/inventory",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/stock",
+        "description": "Get current stock levels"
+      },
+      {
+        "method": "POST",
+        "path": "/forecast",
+        "description": "Generate demand forecast"
+      },
+      {
+        "method": "POST",
+        "path": "/reorder",
+        "description": "Create reorder recommendation"
+      },
+      {
+        "method": "GET",
+        "path": "/analytics",
+        "description": "Get inventory analytics"
+      }
+    ]
+  },
+  "pricing": {
+    "model": "tiered",
+    "currency": "USD",
+    "tiers": [
+      {
+        "name": "starter",
+        "displayName": "Starter",
+        "priceMonthly": 4900,
+        "limits": { "skus": 500, "locations": 1 },
+        "features": ["basic-tracking", "alerts"]
+      },
+      {
+        "name": "professional",
+        "displayName": "Professional",
+        "priceMonthly": 14900,
+        "limits": { "skus": 5000, "locations": 10 },
+        "features": ["demand-forecasting", "auto-reorder", "multi-location"],
+        "popular": true
+      },
+      {
+        "name": "enterprise",
+        "displayName": "Enterprise",
+        "priceMonthly": -1,
+        "limits": { "skus": -1, "locations": -1 },
+        "features": ["unlimited", "erp-integration", "custom-forecasting"]
+      }
+    ]
+  },
+  "marketplace": {
+    "category": "operations",
+    "subcategory": "inventory",
+    "featured": true,
+    "tags": ["inventory", "stock-management", "supply-chain", "forecasting", "operations"]
+  }
+}

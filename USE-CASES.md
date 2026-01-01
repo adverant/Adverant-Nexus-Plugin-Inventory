@@ -104,9 +104,9 @@ flowchart TD
 
 ### Business Impact
 
-- **94% reduction** in stockout incidents
-- **35% decrease** in holding costs
-- **$45,000/month** recovered revenue
+- **Reduced stockout incidents** through predictive forecasting
+- **Lower holding costs** with optimized stock levels
+- **Recovered revenue** from prevented stockouts
 
 ---
 
@@ -182,9 +182,9 @@ class MultiLocationOptimizer {
 
 ### Business Impact
 
-- **45% reduction** in transfer costs
-- **89% inventory efficiency** across locations
-- **$18,000/month** savings
+- **Reduced transfer costs** through intelligent stock balancing
+- **Improved inventory efficiency** across locations
+- **Monthly savings** from optimized distribution
 
 ---
 
@@ -261,9 +261,9 @@ class AutomatedProcurement:
 
 ### Business Impact
 
-- **4 hours/week** saved on manual procurement
-- **22% reduction** in supply costs
-- **$8,500/month** in volume discounts captured
+- **Time saved** on manual procurement tasks
+- **Reduced supply costs** through bulk ordering
+- **Volume discounts captured** via consolidated orders
 
 ---
 
@@ -336,9 +336,9 @@ class RealTimeInventoryMonitor {
 
 ### Business Impact
 
-- **Zero guest-impacting stockouts**
-- **40% reduction** in emergency supply runs
-- **4.8-star average** review rating (up from 4.2)
+- **Fewer guest-impacting stockouts** through proactive alerts
+- **Reduced emergency supply runs** with threshold monitoring
+- **Improved guest reviews** from better supply availability
 
 ---
 
@@ -450,8 +450,8 @@ flowchart LR
 
 ### Business Impact
 
-- **15% reduction** in carrying costs
-- **$12,000/month** identified savings opportunities
+- **Reduced carrying costs** through data-driven decisions
+- **Identified savings opportunities** via analytics
 - **Real-time visibility** into inventory performance
 
 ---

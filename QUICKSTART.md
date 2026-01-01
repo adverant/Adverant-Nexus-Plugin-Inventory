@@ -1,6 +1,6 @@
 # InventoryAI Quick Start Guide
 
-Reduce stockouts by 94% and cut inventory holding costs by 35% with AI-powered demand forecasting and automated reordering. Get your first stock optimization running in under 5 minutes.
+AI-powered demand forecasting and automated reordering to reduce stockouts and optimize inventory holding costs. Get your first stock optimization running in under 5 minutes.
 
 ## Prerequisites
 
